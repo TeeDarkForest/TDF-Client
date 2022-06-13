@@ -115,6 +115,7 @@ public:
 	virtual void ResetServerGameSettings() = 0;
 
 	static LEVEL ToLogLevel(int ConsoleLevel);
+	static int ToLogLevelFilter(int ConsoleLevel);
 
 	// DDRace
 
