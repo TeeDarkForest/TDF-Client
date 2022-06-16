@@ -4,6 +4,7 @@
 #include "datafile.h"
 
 #include <base/hash_ctxt.h>
+#include <base/log.h>
 #include <base/system.h>
 #include <engine/storage.h>
 
@@ -291,7 +292,7 @@ void *CDataFileReader::GetDataImpl(int Index, int Swap)
 			unsigned long UncompressedSize = m_pDataFile->m_Info.m_pDataSizes[Index];
 			unsigned long s;
 
-			dbg_msg("datafile", "loading data index=%d size=%d uncompressed=%lu", Index, DataSize, UncompressedSize);
+			log_debug("datafile", "loading data index=%d size=%d uncompressed=%lu", Index, DataSize, UncompressedSize);
 			m_pDataFile->m_ppDataPtrs[Index] = (char *)malloc(UncompressedSize);
 
 			// read the compressed data
@@ -311,7 +312,7 @@ void *CDataFileReader::GetDataImpl(int Index, int Swap)
 		else
 		{
 			// load the data
-			dbg_msg("datafile", "loading data index=%d size=%d", Index, DataSize);
+			log_debug("datafile", "loading data index=%d size=%d", Index, DataSize);
 			m_pDataFile->m_ppDataPtrs[Index] = (char *)malloc(DataSize);
 			io_seek(m_pDataFile->m_File, m_pDataFile->m_DataStartOffset + m_pDataFile->m_Info.m_pDataOffsets[Index], IOSEEK_START);
 			io_read(m_pDataFile->m_File, m_pDataFile->m_ppDataPtrs[Index], DataSize);
