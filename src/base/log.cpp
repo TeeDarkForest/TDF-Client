@@ -21,15 +21,9 @@
 
 extern "C" {
 
-std::atomic<LEVEL> loglevel = LEVEL_INFO;
 std::atomic<ILogger *> global_logger = nullptr;
 thread_local ILogger *scope_logger = nullptr;
 thread_local bool in_logger = false;
-
-void log_set_loglevel(LEVEL level)
-{
-	loglevel.store(level, std::memory_order_release);
-}
 
 void log_set_global_logger(ILogger *logger)
 {
@@ -77,9 +71,6 @@ void log_set_scope_logger(ILogger *logger)
 
 void log_log_impl(LEVEL level, bool have_color, LOG_COLOR color, const char *sys, const char *fmt, va_list args)
 {
-	if(level > loglevel.load(std::memory_order_acquire))
-		return;
-
 	// Make sure we're not logging recursively.
 	if(in_logger)
 	{
@@ -155,12 +146,21 @@ void log_log_color(LEVEL level, LOG_COLOR color, const char *sys, const char *fm
 }
 }
 
+bool CLogFilter::Filters(const CLogMessage *pMessage)
+{
+	return pMessage->m_Level > m_MaxLevel.load(std::memory_order_relaxed);
+}
+
 #if defined(CONF_PLATFORM_ANDROID)
 class CLoggerAndroid : public ILogger
 {
 public:
 	void Log(const CLogMessage *pMessage) override
 	{
+		if(m_Filter.Filters(pMessage))
+		{
+			return;
+		}
 		int AndroidLevel;
 		switch(pMessage->m_Level)
 		{
@@ -193,9 +193,14 @@ public:
 	CLoggerCollection(std::vector<std::shared_ptr<ILogger>> &&vpLoggers) :
 		m_vpLoggers(std::move(vpLoggers))
 	{
+		m_Filter.m_MaxLevel.store(LEVEL_TRACE, std::memory_order_relaxed);
 	}
 	void Log(const CLogMessage *pMessage) override
 	{
+		if(m_Filter.Filters(pMessage))
+		{
+			return;
+		}
 		for(auto &pLogger : m_vpLoggers)
 		{
 			pLogger->Log(pMessage);
@@ -230,6 +235,10 @@ public:
 	}
 	void Log(const CLogMessage *pMessage) override
 	{
+		if(m_Filter.Filters(pMessage))
+		{
+			return;
+		}
 		aio_lock(m_pAio);
 		if(m_AnsiTruecolor)
 		{
@@ -338,6 +347,10 @@ public:
 	}
 	void Log(const CLogMessage *pMessage) override
 	{
+		if(m_Filter.Filters(pMessage))
+		{
+			return;
+		}
 		int WLen = MultiByteToWideChar(CP_UTF8, 0, pMessage->m_aLine, pMessage->m_LineLength, NULL, 0);
 		if(!WLen)
 		{
@@ -399,6 +412,10 @@ public:
 	}
 	void Log(const CLogMessage *pMessage) override
 	{
+		if(m_Filter.Filters(pMessage))
+		{
+			return;
+		}
 		m_OutputLock.lock();
 		DWORD Written; // we don't care about the value, but Windows 7 crashes if we pass NULL
 		WriteFile(m_pFile, pMessage->m_aLine, pMessage->m_LineLength, &Written, NULL);
@@ -435,6 +452,10 @@ class CLoggerWindowsDebugger : public ILogger
 public:
 	void Log(const CLogMessage *pMessage) override
 	{
+		if(m_Filter.Filters(pMessage))
+		{
+			return;
+		}
 		WCHAR aWBuffer[4096];
 		MultiByteToWideChar(CP_UTF8, 0, pMessage->m_aLine, -1, aWBuffer, sizeof(aWBuffer) / sizeof(WCHAR));
 		OutputDebugStringW(aWBuffer);
@@ -479,6 +500,12 @@ void CFutureLogger::Log(const CLogMessage *pMessage)
 		return;
 	}
 	m_PendingLock.lock();
+	pLogger = m_pLogger.load(std::memory_order_relaxed);
+	if(pLogger)
+	{
+		pLogger->Log(pMessage);
+		return;
+	}
 	m_vPending.push_back(*pMessage);
 	m_PendingLock.unlock();
 }
@@ -489,5 +516,14 @@ void CFutureLogger::GlobalFinish()
 	if(pLogger)
 	{
 		pLogger->GlobalFinish();
+	}
+}
+
+void CFutureLogger::OnFilterChange()
+{
+	ILogger *pLogger = m_pLogger.load(std::memory_order_acquire);
+	if(pLogger)
+	{
+		pLogger->SetFilter(m_Filter);
 	}
 }

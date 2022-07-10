@@ -4397,12 +4397,6 @@ void CClient::ConchainTimeoutSeed(IConsole::IResult *pResult, void *pUserData, I
 		pSelf->m_GenerateTimeoutSeed = false;
 }
 
-void CClient::ConchainLoglevel(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
-{
-	pfnCallback(pResult, pCallbackUserData);
-	log_set_loglevel((LEVEL)g_Config.m_Loglevel);
-}
-
 void CClient::ConchainPassword(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
 {
 	CClient *pSelf = (CClient *)pUserData;
@@ -4428,6 +4422,26 @@ void CClient::ConchainReplays(IConsole::IResult *pResult, void *pUserData, ICons
 			// start recording
 			pSelf->DemoRecorder_HandleAutoStart();
 		}
+	}
+}
+
+void CClient::ConchainLoglevel(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
+{
+	CClient *pSelf = (CClient *)pUserData;
+	pfnCallback(pResult, pCallbackUserData);
+	if(pResult->NumArguments())
+	{
+		pSelf->m_pFileLogger->SetFilter(CLogFilter{IConsole::ToLogLevelFilter(g_Config.m_Loglevel)});
+	}
+}
+
+void CClient::ConchainStdoutOutputLevel(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
+{
+	CClient *pSelf = (CClient *)pUserData;
+	pfnCallback(pResult, pCallbackUserData);
+	if(pResult->NumArguments() && pSelf->m_pStdoutLogger)
+	{
+		pSelf->m_pStdoutLogger->SetFilter(CLogFilter{IConsole::ToLogLevelFilter(g_Config.m_StdoutOutputLevel)});
 	}
 }
 
@@ -4485,7 +4499,6 @@ void CClient::RegisterCommands()
 	m_pConsole->Chain("cl_timeout_seed", ConchainTimeoutSeed, this);
 	m_pConsole->Chain("cl_replays", ConchainReplays, this);
 
-	m_pConsole->Chain("loglevel", ConchainLoglevel, this);
 	m_pConsole->Chain("password", ConchainPassword, this);
 
 	// used for server browser update
@@ -4500,6 +4513,9 @@ void CClient::RegisterCommands()
 	m_pConsole->Chain("gfx_fullscreen", ConchainFullscreen, this);
 	m_pConsole->Chain("gfx_borderless", ConchainWindowBordered, this);
 	m_pConsole->Chain("gfx_vsync", ConchainWindowVSync, this);
+
+	m_pConsole->Chain("loglevel", ConchainLoglevel, this);
+	m_pConsole->Chain("stdout_output_level", ConchainStdoutOutputLevel, this);
 
 	// DDRace
 
@@ -4582,14 +4598,19 @@ int main(int argc, const char **argv)
 #endif
 
 	std::vector<std::shared_ptr<ILogger>> vpLoggers;
+	std::shared_ptr<ILogger> pStdoutLogger = nullptr;
 #if defined(CONF_PLATFORM_ANDROID)
-	vpLoggers.push_back(std::shared_ptr<ILogger>(log_logger_android()));
+	pStdoutLogger = std::shared_ptr<ILogger>(log_logger_android());
 #else
 	if(!Silent)
 	{
-		vpLoggers.push_back(std::shared_ptr<ILogger>(log_logger_stdout()));
+		pStdoutLogger = std::shared_ptr<ILogger>(log_logger_stdout());
 	}
 #endif
+	if(pStdoutLogger)
+	{
+		vpLoggers.push_back(pStdoutLogger);
+	}
 	std::shared_ptr<CFutureLogger> pFutureFileLogger = std::make_shared<CFutureLogger>();
 	vpLoggers.push_back(pFutureFileLogger);
 	std::shared_ptr<CFutureLogger> pFutureConsoleLogger = std::make_shared<CFutureLogger>();
@@ -4606,6 +4627,8 @@ int main(int argc, const char **argv)
 	NotificationsInit();
 
 	CClient *pClient = CreateClient();
+	pClient->SetLoggers(pFutureFileLogger, std::move(pStdoutLogger));
+
 	IKernel *pKernel = IKernel::Create();
 	pKernel->RegisterInterface(pClient, false);
 	pClient->RegisterInterfaces();
@@ -4733,7 +4756,6 @@ int main(int argc, const char **argv)
 		pSteam->ClearConnectAddress();
 	}
 
-	log_set_loglevel((LEVEL)g_Config.m_Loglevel);
 	if(g_Config.m_Logfile[0])
 	{
 		IOHANDLE Logfile = io_open(g_Config.m_Logfile, IOFLAG_WRITE);
@@ -4924,4 +4946,10 @@ int CClient::UdpConnectivity(int NetType)
 		Connectivity = std::max(Connectivity, NewConnectivity);
 	}
 	return Connectivity;
+}
+
+void CClient::SetLoggers(std::shared_ptr<ILogger> &&pFileLogger, std::shared_ptr<ILogger> &&pStdoutLogger)
+{
+	m_pFileLogger = pFileLogger;
+	m_pStdoutLogger = pStdoutLogger;
 }

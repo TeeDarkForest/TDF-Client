@@ -296,6 +296,10 @@ public:
 
 void CServerLogger::Log(const CLogMessage *pMessage)
 {
+	if(m_Filter.Filters(pMessage))
+	{
+		return;
+	}
 	m_PendingLock.lock();
 	if(m_MainThread == std::this_thread::get_id())
 	{
@@ -343,6 +347,10 @@ public:
 
 void CRconClientLogger::Log(const CLogMessage *pMessage)
 {
+	if(m_Filter.Filters(pMessage))
+	{
+		return;
+	}
 	m_pServer->SendRconLogLine(m_ClientID, pMessage);
 }
 
@@ -611,11 +619,11 @@ int CServer::Init()
 
 void CServer::SendLogLine(const CLogMessage *pMessage)
 {
-	if(pMessage->m_Level <= IConsole::ToLogLevel(g_Config.m_ConsoleOutputLevel))
+	if(pMessage->m_Level <= IConsole::ToLogLevelFilter(g_Config.m_ConsoleOutputLevel))
 	{
 		SendRconLogLine(-1, pMessage);
 	}
-	if(pMessage->m_Level <= IConsole::ToLogLevel(g_Config.m_EcOutputLevel))
+	if(pMessage->m_Level <= IConsole::ToLogLevelFilter(g_Config.m_EcOutputLevel))
 	{
 		m_Econ.Send(-1, pMessage->m_aLine);
 	}
@@ -3477,12 +3485,6 @@ void CServer::ConDumpSqlServers(IConsole::IResult *pResult, void *pUserData)
 	}
 }
 
-void CServer::ConchainLoglevel(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
-{
-	pfnCallback(pResult, pCallbackUserData);
-	log_set_loglevel((LEVEL)g_Config.m_Loglevel);
-}
-
 void CServer::ConchainSpecialInfoupdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
 {
 	pfnCallback(pResult, pCallbackUserData);
@@ -3647,6 +3649,26 @@ void CServer::ConchainSixupUpdate(IConsole::IResult *pResult, void *pUserData, I
 		pThis->m_MapReload |= (pThis->m_apCurrentMapData[MAP_TYPE_SIXUP] != 0) != (pResult->GetInteger(0) != 0);
 }
 
+void CServer::ConchainLoglevel(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
+{
+	CServer *pSelf = (CServer *)pUserData;
+	pfnCallback(pResult, pCallbackUserData);
+	if(pResult->NumArguments())
+	{
+		pSelf->m_pFileLogger->SetFilter(CLogFilter{IConsole::ToLogLevelFilter(g_Config.m_Loglevel)});
+	}
+}
+
+void CServer::ConchainStdoutOutputLevel(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
+{
+	CServer *pSelf = (CServer *)pUserData;
+	pfnCallback(pResult, pCallbackUserData);
+	if(pResult->NumArguments() && pSelf->m_pStdoutLogger)
+	{
+		pSelf->m_pStdoutLogger->SetFilter(CLogFilter{IConsole::ToLogLevelFilter(g_Config.m_StdoutOutputLevel)});
+	}
+}
+
 #if defined(CONF_FAMILY_UNIX)
 void CServer::ConchainConnLoggingServerChange(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
 {
@@ -3712,7 +3734,6 @@ void CServer::RegisterCommands()
 	Console()->Register("name_bans", "", CFGFLAG_SERVER, ConNameBans, this, "List all name bans");
 
 	Console()->Chain("sv_name", ConchainSpecialInfoupdate, this);
-	Console()->Chain("loglevel", ConchainLoglevel, this);
 	Console()->Chain("password", ConchainSpecialInfoupdate, this);
 
 	Console()->Chain("sv_max_clients_per_ip", ConchainMaxclientsperipUpdate, this);
@@ -3723,6 +3744,9 @@ void CServer::RegisterCommands()
 	Console()->Chain("sv_rcon_helper_password", ConchainRconHelperPasswordChange, this);
 	Console()->Chain("sv_map", ConchainMapUpdate, this);
 	Console()->Chain("sv_sixup", ConchainSixupUpdate, this);
+
+	Console()->Chain("loglevel", ConchainLoglevel, this);
+	Console()->Chain("stdout_output_level", ConchainStdoutOutputLevel, this);
 
 #if defined(CONF_FAMILY_UNIX)
 	Console()->Chain("sv_conn_logging_server", ConchainConnLoggingServerChange, this);
@@ -3783,14 +3807,19 @@ int main(int argc, const char **argv)
 	}
 
 	std::vector<std::shared_ptr<ILogger>> vpLoggers;
+	std::shared_ptr<ILogger> pStdoutLogger = nullptr;
 #if defined(CONF_PLATFORM_ANDROID)
-	vpLoggers.push_back(std::shared_ptr<ILogger>(log_logger_android()));
+	pStdoutLogger = std::shared_ptr<ILogger>(log_logger_android());
 #else
 	if(!Silent)
 	{
-		vpLoggers.push_back(std::shared_ptr<ILogger>(log_logger_stdout()));
+		pStdoutLogger = std::shared_ptr<ILogger>(log_logger_stdout());
 	}
 #endif
+	if(pStdoutLogger)
+	{
+		vpLoggers.push_back(pStdoutLogger);
+	}
 	std::shared_ptr<CFutureLogger> pFutureFileLogger = std::make_shared<CFutureLogger>();
 	vpLoggers.push_back(pFutureFileLogger);
 	std::shared_ptr<CFutureLogger> pFutureConsoleLogger = std::make_shared<CFutureLogger>();
@@ -3818,6 +3847,8 @@ int main(int argc, const char **argv)
 #endif
 
 	CServer *pServer = CreateServer();
+	pServer->SetLoggers(pFutureFileLogger, std::move(pStdoutLogger));
+
 	IKernel *pKernel = IKernel::Create();
 
 	// create the components
@@ -3887,7 +3918,6 @@ int main(int argc, const char **argv)
 	pConsole->Register("sv_test_cmds", "", CFGFLAG_SERVER, CServer::ConTestingCommands, pConsole, "Turns testing commands aka cheats on/off (setting only works in initial config)");
 	pConsole->Register("sv_rescue", "", CFGFLAG_SERVER, CServer::ConRescue, pConsole, "Allow /rescue command so players can teleport themselves out of freeze (setting only works in initial config)");
 
-	log_set_loglevel((LEVEL)g_Config.m_Loglevel);
 	if(g_Config.m_Logfile[0])
 	{
 		IOHANDLE Logfile = io_open(g_Config.m_Logfile, IOFLAG_WRITE);
@@ -3998,4 +4028,10 @@ bool CServer::SetTimedOut(int ClientID, int OrigID)
 void CServer::SetErrorShutdown(const char *pReason)
 {
 	str_copy(m_aErrorShutdownReason, pReason);
+}
+
+void CServer::SetLoggers(std::shared_ptr<ILogger> &&pFileLogger, std::shared_ptr<ILogger> &&pStdoutLogger)
+{
+	m_pFileLogger = pFileLogger;
+	m_pStdoutLogger = pStdoutLogger;
 }
