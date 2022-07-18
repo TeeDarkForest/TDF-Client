@@ -94,6 +94,8 @@ public:
 	bool m_HudHealthArmor;
 	bool m_HudAmmo;
 	bool m_HudDDRace;
+
+	bool m_OffTime;
 };
 
 class CSnapEntities
@@ -695,6 +697,9 @@ public:
 	bool m_ExtrasSkinLoaded;
 
 	const std::vector<CSnapEntities> &SnapEntities() { return m_vSnapEntities; }
+
+public:
+	bool m_IsOnTimeServer;
 
 private:
 	std::vector<CSnapEntities> m_vSnapEntities;

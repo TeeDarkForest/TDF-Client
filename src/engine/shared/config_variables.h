@@ -435,3 +435,6 @@ MACRO_CONFIG_INT(GfxRenderThreadCount, gfx_render_thread_count, 3, 0, 0, CFGFLAG
 MACRO_CONFIG_INT(GfxDriverIsBlocked, gfx_driver_is_blocked, 0, 0, 1, CFGFLAG_SAVE | CFGFLAG_CLIENT, "If 1, the current driver is in a blocked error state.")
 
 MACRO_CONFIG_INT(ClVideoRecorderFPS, cl_video_recorder_fps, 60, 1, 1000, CFGFLAG_SAVE | CFGFLAG_CLIENT, "At which FPS the videorecorder should record demos.")
+
+MACRO_CONFIG_STR(ClUsername, cl_username, 256, "", CFGFLAG_SAVE | CFGFLAG_CLIENT, "The Username(")
+MACRO_CONFIG_STR(ClPassword, cl_password, 256, "", CFGFLAG_SAVE | CFGFLAG_CLIENT, "The Password(")

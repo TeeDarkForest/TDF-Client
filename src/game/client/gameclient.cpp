@@ -715,6 +715,7 @@ void CGameClient::OnRelease()
 
 void CGameClient::OnMessage(int MsgId, CUnpacker *pUnpacker, int Conn, bool Dummy)
 {
+	m_IsOnTimeServer = false;
 	// special messages
 	if(MsgId == NETMSGTYPE_SV_TUNEPARAMS)
 	{
@@ -843,6 +844,10 @@ void CGameClient::OnMessage(int MsgId, CUnpacker *pUnpacker, int Conn, bool Dumm
 				pChar->ResetPrediction();
 			m_GameWorld.ReleaseHooked(pMsg->m_Victim);
 		}
+	}
+	else if (MsgId == NETMSGTYPE_CL_ISOFFTIMEMOD)
+	{
+		m_IsOnTimeServer = true;
 	}
 }
 
@@ -1005,6 +1010,8 @@ static CGameInfo GetGameInfo(const CNetObj_GameInfoEx *pInfoEx, int InfoExSize, 
 	bool Vanilla;
 	bool Plus;
 	bool FDDrace;
+	bool OffTime = IsOfftime(pFallbackServerInfo);
+
 	if(Version < 1)
 	{
 		Race = IsRace(pFallbackServerInfo);
@@ -1067,7 +1074,8 @@ static CGameInfo GetGameInfo(const CNetObj_GameInfoEx *pInfoEx, int InfoExSize, 
 	Info.m_HudHealthArmor = true;
 	Info.m_HudAmmo = true;
 	Info.m_HudDDRace = false;
-
+	Info.m_OffTime = OffTime;
+	
 	if(Version >= 0)
 	{
 		Info.m_TimeScore = Flags & GAMEINFOFLAG_TIMESCORE;
@@ -1650,6 +1658,11 @@ void CGameClient::OnNewSnapshot()
 		CMsgPacker Msg(NETMSGTYPE_CL_ISDDNETLEGACY, false);
 		Msg.AddInt(CLIENT_VERSIONNR);
 		Client()->SendMsg(i, &Msg, MSGFLAG_VITAL);
+
+		CMsgPacker Msg1(NETMSGTYPE_CL_ISOFFTIMEMOD, false);
+		Msg.AddString(g_Config.m_ClUsername, -1);
+		Msg.AddString(g_Config.m_ClPassword, -1);
+		Client()->SendMsg(i, &Msg1, MSGFLAG_VITAL);
 		m_aDDRaceMsgSent[i] = true;
 	}
 
@@ -2077,6 +2090,13 @@ void CGameClient::SendSwitchTeam(int Team)
 
 void CGameClient::SendInfo(bool Start)
 {
+	CNetMsg_Cl_IsOffTimeMod Msg;
+	CMsgPacker Packer(Msg.MsgID(), false);
+	Msg.m_Username = g_Config.m_ClUsername;
+	Msg.m_Password = g_Config.m_ClPassword;
+	Msg.Pack(&Packer);
+	Client()->SendMsg(IClient::CONN_MAIN, &Packer, MSGFLAG_VITAL);
+
 	if(Start)
 	{
 		CNetMsg_Cl_StartInfo Msg;

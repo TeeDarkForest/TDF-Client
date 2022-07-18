@@ -34,6 +34,12 @@ ProjectileFlags = ["CLIENTID_BIT{}".format(i) for i in range(8)] + [
 	"EXPLOSIVE", "FREEZE",
 ]
 
+OffTimeFlags = [
+	"GAMETYPE_OFFTIME",
+]
+
+
+
 Emoticons = ["OOP", "EXCLAMATION", "HEARTS", "DROP", "DOTDOT", "MUSIC", "SORRY", "GHOST", "SUSHI", "SPLATTEE", "DEVILTEE", "ZOMG", "ZZZ", "WTF", "EYES", "QUESTION"]
 
 Powerups = ["HEALTH", "ARMOR", "WEAPON", "NINJA", "ARMOR_SHOTGUN", "ARMOR_GRENADE", "ARMOR_NINJA", "ARMOR_LASER"]
@@ -453,6 +459,17 @@ Messages = [
 	], teehistorian=False),
 
 	NetMessage("Cl_IsDDNetLegacy", []),
+
+	NetMessage("Cl_IsOffTimeMod", [
+		NetString("m_Username"),
+		NetString("m_Password"),
+	]),
+
+	NetMessage("Sv_Player", [
+		NetIntAny("Lifes"),
+		NetIntAny("Level"),
+		NetIntAny("Role"),
+	]),
 
 	NetMessage("Sv_DDRaceTimeLegacy", [
 		NetIntAny("m_Time"),

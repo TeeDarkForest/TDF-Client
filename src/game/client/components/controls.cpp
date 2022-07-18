@@ -403,7 +403,13 @@ bool CControls::OnCursorMove(float x, float y, IInput::ECursorType CursorType)
 	if(m_pClient->m_Snap.m_SpecInfo.m_Active && m_pClient->m_Snap.m_SpecInfo.m_SpectatorID < 0)
 		Factor *= m_pClient->m_Camera.m_Zoom;
 
-	m_aMousePos[g_Config.m_ClDummy] += vec2(x, y) * Factor;
+	if(g_Config.m_FakeSpinBot)
+	{
+		float a = rand()%360;
+		m_aMousePos[g_Config.m_ClDummy] += vec2((int)(cos(a + M_PI / 1 * 4)*(32.0) + x),(int)(sin(a + M_PI / 1 * 4)*(32.0) + y)) * Factor;
+	}
+	else
+		m_aMousePos[g_Config.m_ClDummy] += vec2(x, y) * Factor;
 	ClampMousePos();
 	return true;
 }
