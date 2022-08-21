@@ -78,10 +78,10 @@ void CMenus::RenderGame(CUIRect MainView)
 	}
 	else if(DoButton_Menu(&s_DummyButton, Client()->DummyConnected() ? Localize("Disconnect Dummy") : Localize("Connect Dummy"), 0, &Button))
 	{
-		if(!Client()->DummyConnected())
-		{
+		//if(!Client()->DummyConnected())
+		//{
 			Client()->DummyConnect();
-		}
+		/*}
 		else
 		{
 			if(Client()->GetCurrentRaceTime() / 60 >= g_Config.m_ClConfirmDisconnectTime && g_Config.m_ClConfirmDisconnectTime >= 0)
@@ -93,7 +93,7 @@ void CMenus::RenderGame(CUIRect MainView)
 				Client()->DummyDisconnect(0);
 				SetActive(false);
 			}
-		}
+		}*/
 	}
 
 	ButtonBar.VSplitRight(5.0f, &ButtonBar, 0);

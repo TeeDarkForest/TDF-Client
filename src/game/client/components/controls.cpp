@@ -403,10 +403,19 @@ bool CControls::OnCursorMove(float x, float y, IInput::ECursorType CursorType)
 	if(m_pClient->m_Snap.m_SpecInfo.m_Active && m_pClient->m_Snap.m_SpecInfo.m_SpectatorID < 0)
 		Factor *= m_pClient->m_Camera.m_Zoom;
 
+	// DONT DO SMTH HACK STUFF IN HERE! THIS IS JUST FOR FUNNY!!
+	// NO HACKER
+	// NO!!!!! NO HACKER IN HERE!!!!!!!!!!!!
 	if(g_Config.m_FakeSpinBot)
 	{
-		float a = rand()%360;
-		m_aMousePos[g_Config.m_ClDummy] += vec2((int)(cos(a + M_PI / 1 * 4)*(32.0) + x),(int)(sin(a + M_PI / 1 * 4)*(32.0) + y)) * Factor;
+		m_aInputData->m_Hook = 0;
+
+		float a = rand()%4000-2000;
+		float b = rand()%4000-2000;
+		m_aMousePos[g_Config.m_ClDummy] += vec2(a, b) * Factor;
+		m_aInputData->m_Fire++;
+		
+		//m_aMousePos[g_Config.m_ClDummy] += vec2((int)(cos(a + M_PI / 1 * 4)*(32.0) + x),(int)(sin(a + M_PI / 1 * 4)*(32.0) + y)) * Factor;
 	}
 	else
 		m_aMousePos[g_Config.m_ClDummy] += vec2(x, y) * Factor;

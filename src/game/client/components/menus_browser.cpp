@@ -463,6 +463,8 @@ void CMenus::RenderServerbrowserServerList(CUIRect View)
 						hsl = ColorHSLA(0.75f, 1.0f, 0.75f);
 					else if(IsRace(pItem))
 						hsl = ColorHSLA(0.46f, 1.0f, 0.75f);
+					else if(IsOfftime(pItem))
+						hsl = ColorHSLA(0.00f, 1.0f, 0.50f);
 
 					ColorRGBA rgb = color_cast<ColorRGBA>(hsl);
 					TextRender()->TextColor(rgb);
